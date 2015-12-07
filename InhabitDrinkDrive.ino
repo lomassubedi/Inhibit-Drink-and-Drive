@@ -39,25 +39,20 @@ char buff[256];
 
 //---------- Function to send SMS --------
 void sendSMS(){
-    while(!LSMS.ready());
+    while(!LSMS.ready())
     delay(1000);
     Serial.println("SIM ready for work!");
     LSMS.beginSMS("9841784514");
-    LSMS.print("Some one in the vehicle numbered XXXX found drunk at: ");
+    // Ignition of vehicle numbered XXX-XXX is disabled. System detected
+    // a drunk driver entering the vehicle at time.
+    LSMS.print("Ignition of a vehicle numbered XXX-XXX is disabled. We detected a drunk driver entering the vehicle at ");
     LSMS.print(localHr);
     LSMS.print(':');
     LSMS.print(localMn);
     LSMS.print(':');
-    LSMS.println(localSec);
-    LSMS.print("Ignition of the vehicle is technically disabled and the driver is safe.");
-    LSMS.println(" Current Location of the vahicle is : ");
-    LSMS.print(vehicleLocation);
+    LSMS.print(localSec);
     LSMS.println('.');
-    LSMS.print("Corrosponding geo-location (lat, lng): ");
-    LSMS.print(latitude);
-    LSMS.print(longitude);
-    LSMS.println(". ");
-    LSMS.print("The person is ");
+    LSMS.print("The driver is safe but ");
     if(bodyAlc > 200 && bodyAlc < 400) {
       LSMS.print("little drunk.");
     }
@@ -65,10 +60,18 @@ void sendSMS(){
       LSMS.print("just drunk.");
     }
     else if(bodyAlc > 600 && bodyAlc < 900) {
-      LSMS.print("very drunk.");
-    }       
-    LSMS.endSMS();
-    
+      LSMS.print("severely drunk.");
+    }
+    LSMS.print('\n');
+    LSMS.print("Currently vehicle is stopped at ");  
+    LSMS.print(vehicleLocation);
+    LSMS.println('.');
+    LSMS.print("Corrosponding geo-location i.e. lat, lng =  ");
+    LSMS.print(latitude, 6);
+    LSMS.print(',');
+    LSMS.print(longitude, 6);
+    LSMS.println(". ");    
+    LSMS.endSMS();    
     if(LSMS.endSMS())
     {
       Serial.println("SMS is sent");
@@ -259,47 +262,45 @@ void setup() {
   //Power ON GPS
   LGPS.powerOn();
   Serial.println("LGPS Power on, and waiting ..."); 
-  delay(3000);  
-  // Configure GPRS Module
-  Serial.println("LGPRS Power on, and waiting ..."); 
-  while (!LGPRS.attachGPRS("web","ncellgprs","ncellgprs"))
-  {
-    delay(2000);
-  }  
+  delay(3000);    
 }
 void loop() {  
   // -------- Alcohol Sensor Operations ------
-  bodyAlc = analogRead(alcoholSensor);
-  if(bodyAlc > 100) {
-    delay(500);  
-    bodyAlc = analogRead(alcoholSensor);
-  }
-  Serial.print("Sensor Value: ");
-  Serial.println(bodyAlc);
+  bodyAlc = analogRead(alcoholSensor);  
+  //------------- GPS Operations always monitor GPS location ------------   
+  Serial.println("GPS locations...");
+  LGPS.getData(&info);  
+  parseGPGGA((const char*)info.GPGGA); 
+  Serial.print("Latitude: ");
+  Serial.print(latitude, 6);
+  Serial.print(", Longitude: ");
+  Serial.println(longitude, 6);
+  //------------------------------------------    
+  delay(500);  
   // A constant value is compared from practical measurement.
   // Generally sensor value greator than 500 is obtained 
   // if a severely drunk comes near to the sensor
   if(bodyAlc > 200) {
+    delay(500);  
+    bodyAlc = analogRead(alcoholSensor);
     Serial.println("Driver found drunk.");  
-    Serial.println("Ignition will be disabled, location will be retrived and- \nSMS will be sent to his/her gurdain\'s registered number.");
+    Serial.println("Ignition will be disabled, location will be retrived and- \nSMS will be sent to a Police Station.");
     // Disable ignition by energizing the relay
     // Vehicle is disabled until RESET button is pressed or the System is rebooted
     digitalWrite(relayPin, HIGH);  
     // Buzzer is turned ON and will be turned OFF after few secs..
     digitalWrite(buZZ, HIGH);    
     //------------------------------------------
-    //------------- GPS Operations ------------   
-    Serial.println("Reading GPS locations...");
-    LGPS.getData(&info);  
-    parseGPGGA((const char*)info.GPGGA); 
-    Serial.print("Latitude: ");
-    Serial.println(latitude);
-    Serial.print("Longitude: ");
-    Serial.println(longitude);
-    //------------------------------------------  
+    // Configure GPRS Module only if the driver found drunk
+    Serial.println("LGPRS Power on, and waiting ..."); 
+    while (!LGPRS.attachGPRS("web","ncellgprs","ncellgprs"))
+    {
+      delay(2000);
+    }  
     Serial.println("Reading JSON file from Google Map API. It may take a minute...");
     readJSONAddress(latitude,longitude);  
-    DynamicJsonBuffer jsonBuffer;
+    
+    DynamicJsonBuffer jsonBuffer;    
     Serial.println("Reading JSON file from Google Map API Done.");
     //------- Parse The JSON obtained JSON File ---------------------
     JsonObject& root = jsonBuffer.parseObject(myData);
@@ -308,18 +309,18 @@ void loop() {
       Serial.println("parseObject() failed");
       return;
     }
-    //  Serial.print(myData);
+//    Serial.print(myData);
     const char* addressExact = root["results"][0]["formatted_address"];
     vehicleLocation = addressExact;
     //---- Done Parsing JSON and obtained the address...
     Serial.print("Obtained Location : ");
     Serial.println(addressExact);        
     // Now send the SMS to the number registered, 
-      sendSMS();  
-    digitalWrite(buZZ, LOW);
+    sendSMS();      
+  } else {
+     Serial.print("Sensor Value: ");
+    Serial.print(bodyAlc);
+    Serial.println(", Alcohol is nill!");
+    digitalWrite(buZZ, LOW);    
   }
-    else {
-      Serial.print("Everything is clean!");
-    }    
-    delay(500);   
 }
