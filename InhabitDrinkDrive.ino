@@ -154,7 +154,7 @@ void parseGPGGA(const char* GPGGAstr)
     
     tmp = getComma(7, GPGGAstr);
     num = getIntNumber(&GPGGAstr[tmp]);    
-    sprintf(buff, "satellites number = %d", num);
+//    sprintf(buff, "satellites number = %d", num);
     Serial.println(buff); 
   }
   else
@@ -302,7 +302,7 @@ void loop() {
     
     DynamicJsonBuffer jsonBuffer;    
     Serial.println("Reading JSON file from Google Map API Done.");
-    //------- Parse The JSON obtained JSON File ---------------------
+    //------- Parse The JSON obtained JSON File --------------------
     JsonObject& root = jsonBuffer.parseObject(myData);
     JsonArray& results = root["results"];
     if (!root.success()) {
